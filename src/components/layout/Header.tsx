@@ -8,6 +8,7 @@ const navigation = [
   { name: "Home", href: "/" },
   { name: "Dashboard", href: "/dashboard" },
   { name: "Agent Portal", href: "/agent-dashboard" },
+  { name: "Admin", href: "/admin" },
   { name: "Hospital", href: "/hospital" },
   { name: "Hotel", href: "/hotel" },
   { name: "Travel", href: "/travel" },
