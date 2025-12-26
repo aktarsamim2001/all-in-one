@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { Check, Crown, Star, Zap, Diamond, ArrowRight, Gift, Wallet } from "luci
 import { cn } from "@/lib/utils";
 import { RazorpayButton } from "@/components/payment/RazorpayButton";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const plans = [
   {
@@ -127,9 +129,37 @@ const faqs = [
 
 export default function Membership() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const navigate = useNavigate();
 
-  const handlePaymentSuccess = (planName: string) => {
-    toast.success(`Successfully subscribed to ${planName} plan!`);
+  const handlePaymentSuccess = async (
+    planName: string, 
+    planPrice: number,
+    response: { razorpay_order_id: string; razorpay_payment_id: string }
+  ) => {
+    try {
+      // Save subscription to database
+      const { data, error } = await supabase.functions.invoke('save-subscription', {
+        body: {
+          plan_name: planName,
+          plan_price: planPrice,
+          billing_cycle: billingCycle,
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+        },
+      });
+
+      if (error || !data?.success) {
+        console.error('Error saving subscription:', error || data?.error);
+        toast.error('Payment successful but failed to save subscription. Please contact support.');
+        return;
+      }
+
+      toast.success(`Successfully subscribed to ${planName} plan!`);
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Error:', err);
+      toast.error('Something went wrong. Please contact support.');
+    }
   };
 
   const getPrice = (plan: typeof plans[0]) => {
@@ -259,7 +289,7 @@ export default function Membership() {
                     amount={getPrice(plan)}
                     name="CareSync Membership"
                     description={`${plan.name} Plan - ${billingCycle === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`}
-                    onSuccess={() => handlePaymentSuccess(plan.name)}
+                    onSuccess={(response) => handlePaymentSuccess(plan.name, getPrice(plan), response)}
                     className={cn(
                       "w-full",
                       plan.popular && "bg-gradient-hero hover:opacity-90"

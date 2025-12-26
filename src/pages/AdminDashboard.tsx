@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Users, UserCheck, Building2, Hotel, Plane, Car, Wallet, 
   Settings, BarChart3, Bell, Shield, FileText, Gift, 
@@ -41,6 +41,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "react-router-dom";
+import { useAdminSubscriptions } from "@/hooks/useAdminSubscriptions";
 
 // Mock Data
 const dashboardStats = {
@@ -269,6 +270,9 @@ const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Fetch real subscription data
+  const { subscriptions: realSubscriptions, stats: subStats, isLoading: subLoading } = useAdminSubscriptions();
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, string> = {
@@ -1421,24 +1425,30 @@ const AdminDashboard = () => {
     </div>
   );
 
-  const renderMemberships = () => (
+  const renderMemberships = () => {
+    // Use real stats if available, otherwise fallback to mock
+    const totalSubscribers = subStats?.totalSubscribers || 0;
+    const totalRevenue = subStats?.totalRevenue || 0;
+    const avgRevenue = totalSubscribers > 0 ? Math.round(totalRevenue / totalSubscribers) : 0;
+
+    return (
     <div className="space-y-6">
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard 
           title="Total Subscribers" 
-          value="13,158" 
+          value={totalSubscribers > 0 ? totalSubscribers.toLocaleString() : "0"} 
           icon={Users} 
-          trend="+15.3% this month"
-          trendUp={true}
+          trend={totalSubscribers > 0 ? "From Razorpay" : "No subscribers yet"}
+          trendUp={totalSubscribers > 0}
           color="bg-primary/20 text-primary"
         />
         <StatCard 
-          title="Monthly Revenue" 
-          value="₹70.8L" 
+          title="Total Revenue" 
+          value={totalRevenue > 0 ? `₹${(totalRevenue / 100).toLocaleString()}` : "₹0"} 
           icon={IndianRupee} 
-          trend="+22.1% this month"
-          trendUp={true}
+          trend={totalRevenue > 0 ? "From subscriptions" : "No revenue yet"}
+          trendUp={totalRevenue > 0}
           color="bg-emerald-500/20 text-emerald-400"
         />
         <StatCard 
@@ -1451,10 +1461,10 @@ const AdminDashboard = () => {
         />
         <StatCard 
           title="Avg. Revenue/User" 
-          value="₹538" 
+          value={avgRevenue > 0 ? `₹${avgRevenue}` : "₹0"} 
           icon={Target} 
-          trend="+8.7% this month"
-          trendUp={true}
+          trend={avgRevenue > 0 ? "Per subscriber" : "No data"}
+          trendUp={avgRevenue > 0}
           color="bg-amber-500/20 text-amber-400"
         />
       </div>
@@ -1593,48 +1603,93 @@ const AdminDashboard = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {membershipSubscribers.map((sub) => (
-                  <TableRow key={sub.id} className="border-border/30">
-                    <TableCell className="font-medium">{sub.user}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={
-                        sub.plan === "Platinum" ? "border-primary text-primary" :
-                        sub.plan === "Gold" ? "border-amber-400 text-amber-400" :
-                        sub.plan === "Silver" ? "border-slate-400 text-slate-400" :
-                        "border-zinc-500 text-zinc-400"
-                      }>
-                        {sub.plan}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{sub.startDate}</TableCell>
-                    <TableCell className="text-muted-foreground">{sub.expiryDate}</TableCell>
-                    <TableCell className="font-medium">₹{sub.amount.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <Badge className={
-                        sub.status === "active" ? "bg-emerald-500/20 text-emerald-400" :
-                        sub.status === "expiring" ? "bg-amber-500/20 text-amber-400" :
-                        "bg-red-500/20 text-red-400"
-                      }>
-                        {sub.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        {sub.status === "expiring" && (
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-emerald-400">
-                            <RefreshCw className="w-4 h-4" />
+                {/* Show real subscriptions first, then mock data */}
+                {realSubscriptions.length > 0 ? (
+                  realSubscriptions.map((sub) => (
+                    <TableRow key={sub.id} className="border-border/30">
+                      <TableCell className="font-medium">User {sub.user_id.slice(0, 8)}...</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={
+                          sub.plan_name === "Platinum" ? "border-primary text-primary" :
+                          sub.plan_name === "Gold" ? "border-amber-400 text-amber-400" :
+                          sub.plan_name === "Silver" ? "border-slate-400 text-slate-400" :
+                          "border-zinc-500 text-zinc-400"
+                        }>
+                          {sub.plan_name}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(sub.start_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(sub.end_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="font-medium">₹{sub.plan_price.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge className={
+                          sub.status === "active" ? "bg-emerald-500/20 text-emerald-400" :
+                          sub.status === "expiring" ? "bg-amber-500/20 text-amber-400" :
+                          "bg-red-500/20 text-red-400"
+                        }>
+                          {sub.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Eye className="w-4 h-4" />
                           </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  membershipSubscribers.map((sub) => (
+                    <TableRow key={sub.id} className="border-border/30">
+                      <TableCell className="font-medium">{sub.user}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={
+                          sub.plan === "Platinum" ? "border-primary text-primary" :
+                          sub.plan === "Gold" ? "border-amber-400 text-amber-400" :
+                          sub.plan === "Silver" ? "border-slate-400 text-slate-400" :
+                          "border-zinc-500 text-zinc-400"
+                        }>
+                          {sub.plan}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{sub.startDate}</TableCell>
+                      <TableCell className="text-muted-foreground">{sub.expiryDate}</TableCell>
+                      <TableCell className="font-medium">₹{sub.amount.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge className={
+                          sub.status === "active" ? "bg-emerald-500/20 text-emerald-400" :
+                          sub.status === "expiring" ? "bg-amber-500/20 text-amber-400" :
+                          "bg-red-500/20 text-red-400"
+                        }>
+                          {sub.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          {sub.status === "expiring" && (
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-emerald-400">
+                              <RefreshCw className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </Card>
@@ -1774,7 +1829,8 @@ const AdminDashboard = () => {
         </TabsContent>
       </Tabs>
     </div>
-  );
+    );
+  };
 
   const renderReports = () => (
     <div className="space-y-6">
