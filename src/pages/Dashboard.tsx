@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
   Shield,
   Crown
 } from "lucide-react";
+import { useSubscription } from "@/hooks/useSubscription";
 
 // Mock user data - replace with real data from backend
 const mockUser = {
@@ -41,14 +43,6 @@ const mockUser = {
   joinedDate: "2024-01-15",
   referralCode: "RAHUL2024",
   referralEarnings: 1250,
-};
-
-const mockMembership = {
-  plan: "Gold",
-  status: "active",
-  startDate: "2024-01-15",
-  expiryDate: "2025-01-15",
-  modules: ["Hospital", "Hotel"],
 };
 
 const mockWallet = {
@@ -99,6 +93,11 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const { subscription, isLoading: isSubLoading } = useSubscription();
+
+  // Determine membership info from subscription
+  const membershipPlan = subscription?.plan_name || null;
+  const membershipExpiry = subscription?.end_date ? new Date(subscription.end_date).toLocaleDateString() : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -149,17 +148,26 @@ const Dashboard = () => {
                 </div>
 
                 {/* Membership Badge */}
-                <div className="flex flex-col items-center gap-2">
-                  <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30">
-                    <div className="flex items-center gap-2">
-                      <Crown className="w-5 h-5 text-amber-400" />
-                      <span className="font-bold text-amber-400">{mockMembership.plan} Member</span>
+                {membershipPlan ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30">
+                      <div className="flex items-center gap-2">
+                        <Crown className="w-5 h-5 text-amber-400" />
+                        <span className="font-bold text-amber-400">{membershipPlan} Member</span>
+                      </div>
                     </div>
+                    <span className="text-xs text-muted-foreground">
+                      Expires: {membershipExpiry}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    Expires: {new Date(mockMembership.expiryDate).toLocaleDateString()}
-                  </span>
-                </div>
+                ) : (
+                  <Link to="/membership">
+                    <Button variant="outline" size="sm" className="border-primary text-primary">
+                      <Crown className="w-4 h-4 mr-2" />
+                      Get Membership
+                    </Button>
+                  </Link>
+                )}
 
                 <Button variant="outline" size="sm">
                   <Edit className="w-4 h-4 mr-2" />
