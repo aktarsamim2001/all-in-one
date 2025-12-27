@@ -1,14 +1,19 @@
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Wallet, Bell, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+const baseNavigation = [
   { name: "Home", href: "/" },
-  { name: "Dashboard", href: "/dashboard" },
-  { name: "Agent Portal", href: "/agent-dashboard" },
-  { name: "Admin", href: "/admin" },
   { name: "Hospital", href: "/hospital" },
   { name: "Hotel", href: "/hotel" },
   { name: "Travel", href: "/travel" },
@@ -16,9 +21,14 @@ const navigation = [
   { name: "Membership", href: "/membership" },
 ];
 
+
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { isAuthenticated, user, role, isLoading, signOut, getDashboardPath } = useAuth();
+
+  // Remove dashboard from main nav if logged in, move to dropdown
+  let navigation = [...baseNavigation];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-dark">
@@ -58,12 +68,33 @@ export function Header() {
           <Button variant="ghost" size="icon">
             <Wallet className="h-5 w-5" />
           </Button>
-          <Link to="/auth">
-            <Button variant="hero" size="default">
-              <User className="h-4 w-4" />
-              Sign In
-            </Button>
-          </Link>
+          {!isLoading && !isAuthenticated && (
+            <Link to="/auth">
+              <Button variant="hero" size="default">
+                <User className="h-4 w-4" />
+                Sign In
+              </Button>
+            </Link>
+          )}
+          {!isLoading && isAuthenticated && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <User className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link to="/profile">Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to={getDashboardPath()}>Dashboard</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={signOut}>Logout</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Mobile menu button */}
@@ -97,11 +128,32 @@ export function Header() {
               </Link>
             ))}
             <div className="pt-4 border-t border-border flex gap-2">
-              <Link to="/auth" className="flex-1">
-                <Button variant="hero" className="w-full">
-                  Sign In
-                </Button>
-              </Link>
+              {!isLoading && !isAuthenticated && (
+                <Link to="/auth" className="flex-1">
+                  <Button variant="hero" className="w-full">
+                    Sign In
+                  </Button>
+                </Link>
+              )}
+              {!isLoading && isAuthenticated && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      Profile
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile">Profile</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to={getDashboardPath()}>Dashboard</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={signOut}>Logout</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         </div>
