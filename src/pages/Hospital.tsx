@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
+import { BookingDialog } from "@/components/hospital/BookingDialog";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -238,12 +240,21 @@ const topDoctors = [
   },
 ];
 
+// Mock hospital data for booking dialog
+const hospitalForBooking = {
+  name: "Hospital",
+  address: "Address",
+};
+
 export default function Hospital() {
+  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState("general");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedState, setSelectedState] = useState("");
   const [selectedArea, setSelectedArea] = useState("");
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
 
   const availableStates = selectedCountry ? statesByCountry[selectedCountry] || [] : [];
   const availableAreas = selectedState ? areasByState[selectedState] || [] : [];
@@ -257,6 +268,18 @@ export default function Hospital() {
   const handleStateChange = (value: string) => {
     setSelectedState(value);
     setSelectedArea("");
+  };
+
+  const handleViewHospital = (hospitalId: number) => {
+    navigate(`/hospital/${hospitalId}`);
+  };
+
+  const handleBookDoctor = (doctor: any) => {
+    setSelectedDoctor({
+      ...doctor,
+      fee: parseInt(doctor.fee.replace(/[₹,]/g, "")),
+    });
+    setBookingOpen(true);
   };
 
   return (
@@ -442,7 +465,11 @@ export default function Hospital() {
                         </span>
                       ))}
                     </div>
-                    <Button variant="hospital" className="w-full">
+                    <Button 
+                      variant="hospital" 
+                      className="w-full"
+                      onClick={() => handleViewHospital(hospital.id)}
+                    >
                       <Building2 className="h-4 w-4 mr-2" />
                       View Details
                     </Button>
@@ -498,7 +525,11 @@ export default function Hospital() {
                     </span>
                   </div>
 
-                  <Button variant="hospital" className="w-full">
+                  <Button 
+                    variant="hospital" 
+                    className="w-full"
+                    onClick={() => handleBookDoctor(doctor)}
+                  >
                     <Calendar className="h-4 w-4 mr-2" />
                     Book Appointment
                   </Button>
@@ -510,6 +541,14 @@ export default function Hospital() {
       </main>
 
       <Footer />
+
+      {/* Booking Dialog */}
+      <BookingDialog
+        open={bookingOpen}
+        onOpenChange={setBookingOpen}
+        doctor={selectedDoctor}
+        hospital={hospitalForBooking}
+      />
     </div>
   );
 }

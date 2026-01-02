@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Hospital from "./pages/Hospital";
+import HospitalDetails from "./pages/HospitalDetails";
 import Hotel from "./pages/Hotel";
 import Travel from "./pages/Travel";
 import Ride from "./pages/Ride";
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/hospital" element={<Hospital />} />
+          <Route path="/hospital/:id" element={<HospitalDetails />} />
           <Route path="/hotel" element={<Hotel />} />
           <Route path="/travel" element={<Travel />} />
           <Route path="/ride" element={<Ride />} />
