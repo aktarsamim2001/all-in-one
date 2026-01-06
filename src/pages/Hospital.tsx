@@ -1,8 +1,17 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
+import { BookingDialog } from "@/components/hospital/BookingDialog";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { 
   Search, 
   MapPin, 
@@ -16,9 +25,138 @@ import {
   Bone,
   Eye,
   Baby,
-  Activity
+  Activity,
+  Globe,
+  Map
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const countries = [
+  { id: "india", name: "India" },
+  { id: "usa", name: "United States" },
+  { id: "uk", name: "United Kingdom" },
+  { id: "uae", name: "UAE" },
+  { id: "singapore", name: "Singapore" },
+];
+
+const statesByCountry: Record<string, { id: string; name: string }[]> = {
+  india: [
+    { id: "maharashtra", name: "Maharashtra" },
+    { id: "delhi", name: "Delhi" },
+    { id: "karnataka", name: "Karnataka" },
+    { id: "tamil-nadu", name: "Tamil Nadu" },
+    { id: "gujarat", name: "Gujarat" },
+  ],
+  usa: [
+    { id: "california", name: "California" },
+    { id: "new-york", name: "New York" },
+    { id: "texas", name: "Texas" },
+    { id: "florida", name: "Florida" },
+  ],
+  uk: [
+    { id: "england", name: "England" },
+    { id: "scotland", name: "Scotland" },
+    { id: "wales", name: "Wales" },
+  ],
+  uae: [
+    { id: "dubai", name: "Dubai" },
+    { id: "abu-dhabi", name: "Abu Dhabi" },
+    { id: "sharjah", name: "Sharjah" },
+  ],
+  singapore: [
+    { id: "central", name: "Central Region" },
+    { id: "east", name: "East Region" },
+    { id: "west", name: "West Region" },
+  ],
+};
+
+const areasByState: Record<string, { id: string; name: string }[]> = {
+  maharashtra: [
+    { id: "mumbai", name: "Mumbai" },
+    { id: "pune", name: "Pune" },
+    { id: "nagpur", name: "Nagpur" },
+    { id: "thane", name: "Thane" },
+  ],
+  delhi: [
+    { id: "south-delhi", name: "South Delhi" },
+    { id: "north-delhi", name: "North Delhi" },
+    { id: "central-delhi", name: "Central Delhi" },
+    { id: "east-delhi", name: "East Delhi" },
+  ],
+  karnataka: [
+    { id: "bangalore", name: "Bangalore" },
+    { id: "mysore", name: "Mysore" },
+    { id: "mangalore", name: "Mangalore" },
+  ],
+  "tamil-nadu": [
+    { id: "chennai", name: "Chennai" },
+    { id: "coimbatore", name: "Coimbatore" },
+    { id: "madurai", name: "Madurai" },
+  ],
+  gujarat: [
+    { id: "ahmedabad", name: "Ahmedabad" },
+    { id: "surat", name: "Surat" },
+    { id: "vadodara", name: "Vadodara" },
+  ],
+  california: [
+    { id: "los-angeles", name: "Los Angeles" },
+    { id: "san-francisco", name: "San Francisco" },
+    { id: "san-diego", name: "San Diego" },
+  ],
+  "new-york": [
+    { id: "manhattan", name: "Manhattan" },
+    { id: "brooklyn", name: "Brooklyn" },
+    { id: "queens", name: "Queens" },
+  ],
+  texas: [
+    { id: "houston", name: "Houston" },
+    { id: "dallas", name: "Dallas" },
+    { id: "austin", name: "Austin" },
+  ],
+  florida: [
+    { id: "miami", name: "Miami" },
+    { id: "orlando", name: "Orlando" },
+    { id: "tampa", name: "Tampa" },
+  ],
+  england: [
+    { id: "london", name: "London" },
+    { id: "manchester", name: "Manchester" },
+    { id: "birmingham", name: "Birmingham" },
+  ],
+  scotland: [
+    { id: "edinburgh", name: "Edinburgh" },
+    { id: "glasgow", name: "Glasgow" },
+  ],
+  wales: [
+    { id: "cardiff", name: "Cardiff" },
+    { id: "swansea", name: "Swansea" },
+  ],
+  dubai: [
+    { id: "downtown", name: "Downtown Dubai" },
+    { id: "marina", name: "Dubai Marina" },
+    { id: "deira", name: "Deira" },
+  ],
+  "abu-dhabi": [
+    { id: "al-ain", name: "Al Ain" },
+    { id: "khalifa-city", name: "Khalifa City" },
+  ],
+  sharjah: [
+    { id: "al-majaz", name: "Al Majaz" },
+    { id: "al-nahda", name: "Al Nahda" },
+  ],
+  central: [
+    { id: "orchard", name: "Orchard" },
+    { id: "marina-bay", name: "Marina Bay" },
+  ],
+  east: [
+    { id: "tampines", name: "Tampines" },
+    { id: "bedok", name: "Bedok" },
+  ],
+  west: [
+    { id: "jurong", name: "Jurong" },
+    { id: "clementi", name: "Clementi" },
+  ],
+};
 
 const categories = [
   { id: "general", name: "General", icon: Stethoscope },
@@ -102,9 +240,47 @@ const topDoctors = [
   },
 ];
 
+// Mock hospital data for booking dialog
+const hospitalForBooking = {
+  name: "Hospital",
+  address: "Address",
+};
+
 export default function Hospital() {
+  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState("general");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedArea, setSelectedArea] = useState("");
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
+
+  const availableStates = selectedCountry ? statesByCountry[selectedCountry] || [] : [];
+  const availableAreas = selectedState ? areasByState[selectedState] || [] : [];
+
+  const handleCountryChange = (value: string) => {
+    setSelectedCountry(value);
+    setSelectedState("");
+    setSelectedArea("");
+  };
+
+  const handleStateChange = (value: string) => {
+    setSelectedState(value);
+    setSelectedArea("");
+  };
+
+  const handleViewHospital = (hospitalId: number) => {
+    navigate(`/hospital/${hospitalId}`);
+  };
+
+  const handleBookDoctor = (doctor: any) => {
+    setSelectedDoctor({
+      ...doctor,
+      fee: parseInt(doctor.fee.replace(/[₹,]/g, "")),
+    });
+    setBookingOpen(true);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -132,15 +308,65 @@ export default function Hospital() {
                 Book appointments with top doctors, find nearby hospitals, and earn cashback on every consultation.
               </p>
 
+              {/* Location Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10 pointer-events-none" />
+                  <Select value={selectedCountry} onValueChange={handleCountryChange}>
+                    <SelectTrigger className="pl-10 h-12">
+                      <SelectValue placeholder="Select Country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countries.map((country) => (
+                        <SelectItem key={country.id} value={country.id}>
+                          {country.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="relative">
+                  <Map className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10 pointer-events-none" />
+                  <Select 
+                    value={selectedState} 
+                    onValueChange={handleStateChange}
+                    disabled={!selectedCountry}
+                  >
+                    <SelectTrigger className="pl-10 h-12">
+                      <SelectValue placeholder="Select State" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableStates.map((state) => (
+                        <SelectItem key={state.id} value={state.id}>
+                          {state.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10 pointer-events-none" />
+                  <Select 
+                    value={selectedArea} 
+                    onValueChange={setSelectedArea}
+                    disabled={!selectedState}
+                  >
+                    <SelectTrigger className="pl-10 h-12">
+                      <SelectValue placeholder="Select Area" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAreas.map((area) => (
+                        <SelectItem key={area.id} value={area.id}>
+                          {area.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               {/* Search Bar */}
               <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    placeholder="Enter your area or pincode"
-                    className="pl-12 h-14 text-base"
-                  />
-                </div>
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
@@ -239,7 +465,11 @@ export default function Hospital() {
                         </span>
                       ))}
                     </div>
-                    <Button variant="hospital" className="w-full">
+                    <Button 
+                      variant="hospital" 
+                      className="w-full"
+                      onClick={() => handleViewHospital(hospital.id)}
+                    >
                       <Building2 className="h-4 w-4 mr-2" />
                       View Details
                     </Button>
@@ -295,7 +525,11 @@ export default function Hospital() {
                     </span>
                   </div>
 
-                  <Button variant="hospital" className="w-full">
+                  <Button 
+                    variant="hospital" 
+                    className="w-full"
+                    onClick={() => handleBookDoctor(doctor)}
+                  >
                     <Calendar className="h-4 w-4 mr-2" />
                     Book Appointment
                   </Button>
@@ -307,6 +541,14 @@ export default function Hospital() {
       </main>
 
       <Footer />
+
+      {/* Booking Dialog */}
+      <BookingDialog
+        open={bookingOpen}
+        onOpenChange={setBookingOpen}
+        doctor={selectedDoctor}
+        hospital={hospitalForBooking}
+      />
     </div>
   );
 }

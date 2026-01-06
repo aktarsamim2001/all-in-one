@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -6,6 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { AppointmentActions } from "@/components/appointments/AppointmentActions";
+import { AddMoneyDialog } from "@/components/wallet/AddMoneyDialog";
+import { WithdrawMoneyDialog } from "@/components/wallet/WithdrawMoneyDialog";
+import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   User, 
   CreditCard, 
@@ -29,37 +34,18 @@ import {
   Mail,
   Shield,
   Crown,
-  LogOut
+  LogOut,
+  Loader2,
+  Plus,
+  ArrowUpRight,
+  ArrowDownLeft
 } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuth } from "@/hooks/useAuth";
+import { useWallet } from "@/hooks/useWallet";
+import { useReferral } from "@/hooks/useReferral";
 import { toast } from "sonner";
-
-// Mock user data - replace with real data from backend
-const mockUser = {
-  name: "Rahul Sharma",
-  email: "rahul.sharma@email.com",
-  phone: "+91 98765 43210",
-  avatar: null,
-  verified: true,
-  aadhaarVerified: true,
-  joinedDate: "2024-01-15",
-  referralCode: "RAHUL2024",
-  referralEarnings: 1250,
-};
-
-const mockWallet = {
-  balance: 2450,
-  pendingWithdrawal: 500,
-  totalEarned: 5200,
-  referralCoins: 125,
-};
-
-const mockHospitalBookings = [
-  { id: "H001", hospital: "Apollo Hospital", doctor: "Dr. Sharma", date: "2024-12-20", time: "10:00 AM", status: "confirmed", amount: 500 },
-  { id: "H002", hospital: "Max Healthcare", doctor: "Dr. Patel", date: "2024-12-18", time: "2:30 PM", status: "completed", amount: 750 },
-  { id: "H003", hospital: "Fortis Hospital", doctor: "Dr. Singh", date: "2024-12-15", time: "11:00 AM", status: "cancelled", amount: 600 },
-];
+import { format } from "date-fns";
 
 const mockHotelBookings = [
   { id: "HT001", hotel: "Taj Palace", location: "New Delhi", checkIn: "2024-12-25", checkOut: "2024-12-28", rooms: 1, status: "confirmed", amount: 15000 },
@@ -75,6 +61,20 @@ const mockRideBookings = [
   { id: "R001", from: "Home", to: "Airport", date: "2024-12-20", time: "6:00 AM", vehicle: "Sedan", status: "completed", amount: 850, driver: "Rajesh K." },
   { id: "R002", from: "Office", to: "Mall", date: "2024-12-19", time: "5:30 PM", vehicle: "Hatchback", status: "completed", amount: 320, driver: "Amit S." },
 ];
+
+interface Appointment {
+  id: string;
+  doctor_name: string;
+  doctor_specialty: string | null;
+  hospital_name: string;
+  appointment_date: string;
+  appointment_time: string;
+  consultation_fee: number;
+  payment_method: string;
+  payment_status: string;
+  status: string;
+  created_at: string;
+}
 
 const StatusBadge = ({ status }: { status: string }) => {
   const config: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
@@ -96,9 +96,38 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
+  const [isAddMoneyOpen, setIsAddMoneyOpen] = useState(false);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const { subscription, isLoading: isSubLoading } = useSubscription();
   const { user, signOut } = useAuth();
+  const { wallet, transactions, isLoading: isWalletLoading, refetch: refetchWallet } = useWallet(user?.id);
+  const { referralCode, totalReferrals, getReferralLink, refetch: refetchReferral } = useReferral(user?.id);
   const navigate = useNavigate();
+
+  // Fetch appointments from database
+  const fetchAppointments = useCallback(async () => {
+    if (!user) return;
+    
+    setIsLoadingAppointments(true);
+    const { data, error } = await supabase
+      .from("appointments")
+      .select("*")
+      .order("appointment_date", { ascending: false });
+
+    if (error) {
+      console.error("Failed to fetch appointments:", error);
+    } else {
+      setAppointments(data || []);
+    }
+    setIsLoadingAppointments(false);
+  }, [user]);
+
+  useEffect(() => {
+    fetchAppointments();
+  }, [fetchAppointments]);
 
   // Determine membership info from subscription
   const membershipPlan = subscription?.plan_name || null;
@@ -116,6 +145,21 @@ const Dashboard = () => {
     } else {
       toast.success("Signed out successfully");
       navigate("/");
+    }
+  };
+
+  const handleCopyReferralCode = () => {
+    if (referralCode) {
+      navigator.clipboard.writeText(referralCode);
+      toast.success("Referral code copied!");
+    }
+  };
+
+  const handleShareReferral = () => {
+    const link = getReferralLink();
+    if (link) {
+      navigator.clipboard.writeText(link);
+      toast.success("Referral link copied! Share it with friends.");
     }
   };
 
@@ -189,7 +233,7 @@ const Dashboard = () => {
                   </Link>
                 )}
 
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => setIsEditProfileOpen(true)}>
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Profile
                 </Button>
@@ -212,7 +256,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Wallet Balance</p>
-                    <p className="text-xl font-bold text-foreground">₹{mockWallet.balance.toLocaleString()}</p>
+                    <p className="text-xl font-bold text-foreground">₹{(wallet?.balance || 0).toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -226,7 +270,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Referral Coins</p>
-                    <p className="text-xl font-bold text-foreground">{mockWallet.referralCoins}</p>
+                    <p className="text-xl font-bold text-foreground">{wallet?.referral_coins || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -241,7 +285,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">Total Bookings</p>
                     <p className="text-xl font-bold text-foreground">
-                      {mockHospitalBookings.length + mockHotelBookings.length + mockTravelBookings.length + mockRideBookings.length}
+                      {appointments.length + mockHotelBookings.length + mockTravelBookings.length + mockRideBookings.length}
                     </p>
                   </div>
                 </div>
@@ -256,7 +300,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Total Earned</p>
-                    <p className="text-xl font-bold text-foreground">₹{mockWallet.totalEarned.toLocaleString()}</p>
+                    <p className="text-xl font-bold text-foreground">₹{(wallet?.total_earned || 0).toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -302,15 +346,23 @@ const Dashboard = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {mockHospitalBookings.slice(0, 2).map((booking) => (
-                      <div key={booking.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                        <div>
-                          <p className="font-medium text-foreground">{booking.hospital}</p>
-                          <p className="text-sm text-muted-foreground">{booking.doctor} • {booking.date}</p>
-                        </div>
-                        <StatusBadge status={booking.status} />
+                    {isLoadingAppointments ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                       </div>
-                    ))}
+                    ) : appointments.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-4">No appointments yet</p>
+                    ) : (
+                      appointments.slice(0, 2).map((appointment) => (
+                        <div key={appointment.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                          <div>
+                            <p className="font-medium text-foreground">{appointment.hospital_name}</p>
+                            <p className="text-sm text-muted-foreground">{appointment.doctor_name} • {format(new Date(appointment.appointment_date), "MMM d, yyyy")}</p>
+                          </div>
+                          <StatusBadge status={appointment.status} />
+                        </div>
+                      ))
+                    )}
                     <Button variant="ghost" className="w-full" onClick={() => setActiveTab("hospital")}>
                       View All Hospital Bookings
                     </Button>
@@ -400,9 +452,9 @@ const Dashboard = () => {
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="px-4 py-2 rounded-lg bg-background border border-border font-mono text-lg">
-                        {mockUser.referralCode}
+                        {referralCode}
                       </div>
-                      <Button>Copy Code</Button>
+                      <Button onClick={handleCopyReferralCode}>Copy Code</Button>
                     </div>
                   </div>
                 </CardContent>
@@ -433,22 +485,36 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {mockHospitalBookings.map((booking) => (
-                          <tr key={booking.id} className="border-b border-border/50 hover:bg-muted/30">
-                            <td className="py-3 px-4 font-mono text-sm">{booking.id}</td>
-                            <td className="py-3 px-4">{booking.hospital}</td>
-                            <td className="py-3 px-4">{booking.doctor}</td>
-                            <td className="py-3 px-4">{booking.date} • {booking.time}</td>
-                            <td className="py-3 px-4">₹{booking.amount}</td>
-                            <td className="py-3 px-4"><StatusBadge status={booking.status} /></td>
-                            <td className="py-3 px-4">
-                              <div className="flex gap-2">
-                                <Button variant="ghost" size="sm"><Eye className="w-4 h-4" /></Button>
-                                <Button variant="ghost" size="sm"><Download className="w-4 h-4" /></Button>
-                              </div>
+                        {isLoadingAppointments ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center">
+                              <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                             </td>
                           </tr>
-                        ))}
+                        ) : appointments.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                              No appointments found. Book your first appointment!
+                            </td>
+                          </tr>
+                        ) : (
+                          appointments.map((appointment) => (
+                            <tr key={appointment.id} className="border-b border-border/50 hover:bg-muted/30">
+                              <td className="py-3 px-4 font-mono text-sm">{appointment.id.slice(0, 8)}</td>
+                              <td className="py-3 px-4">{appointment.hospital_name}</td>
+                              <td className="py-3 px-4">{appointment.doctor_name}</td>
+                              <td className="py-3 px-4">{format(new Date(appointment.appointment_date), "MMM d, yyyy")} • {appointment.appointment_time}</td>
+                              <td className="py-3 px-4">₹{appointment.consultation_fee}</td>
+                              <td className="py-3 px-4"><StatusBadge status={appointment.status} /></td>
+                              <td className="py-3 px-4">
+                                <div className="flex gap-2">
+                                  <Button variant="ghost" size="sm"><Eye className="w-4 h-4" /></Button>
+                                  <AppointmentActions appointment={appointment} onUpdate={fetchAppointments} />
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -618,27 +684,65 @@ const Dashboard = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                       <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
                         <p className="text-sm text-muted-foreground">Available Balance</p>
-                        <p className="text-2xl font-bold text-primary">₹{mockWallet.balance.toLocaleString()}</p>
-                      </div>
-                      <div className="p-4 rounded-lg bg-muted/50">
-                        <p className="text-sm text-muted-foreground">Pending Withdrawal</p>
-                        <p className="text-2xl font-bold text-foreground">₹{mockWallet.pendingWithdrawal}</p>
+                        <p className="text-2xl font-bold text-primary">₹{(wallet?.balance || 0).toLocaleString()}</p>
                       </div>
                       <div className="p-4 rounded-lg bg-muted/50">
                         <p className="text-sm text-muted-foreground">Total Earned</p>
-                        <p className="text-2xl font-bold text-foreground">₹{mockWallet.totalEarned.toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-foreground">₹{(wallet?.total_earned || 0).toLocaleString()}</p>
                       </div>
                       <div className="p-4 rounded-lg bg-muted/50">
                         <p className="text-sm text-muted-foreground">Referral Coins</p>
-                        <p className="text-2xl font-bold text-foreground">{mockWallet.referralCoins}</p>
+                        <p className="text-2xl font-bold text-foreground">{wallet?.referral_coins || 0}</p>
                       </div>
                     </div>
+
+                    {/* Transaction History */}
+                    <div className="mb-6">
+                      <h4 className="font-semibold mb-3">Recent Transactions</h4>
+                      {transactions.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-4">No transactions yet</p>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {transactions.slice(0, 5).map((tx) => (
+                            <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${tx.type === 'credit' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                                  {tx.type === 'credit' ? (
+                                    <ArrowDownLeft className="w-4 h-4 text-green-500" />
+                                  ) : (
+                                    <ArrowUpRight className="w-4 h-4 text-red-500" />
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium">{tx.description || (tx.type === 'credit' ? 'Added' : 'Spent')}</p>
+                                  <p className="text-xs text-muted-foreground">{format(new Date(tx.created_at), 'MMM d, yyyy')}</p>
+                                </div>
+                              </div>
+                              <p className={`font-semibold ${tx.type === 'credit' ? 'text-green-500' : 'text-red-500'}`}>
+                                {tx.type === 'credit' ? '+' : '-'}₹{tx.amount.toLocaleString()}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex gap-3">
-                      <Button className="flex-1">Withdraw Money</Button>
-                      <Button variant="outline" className="flex-1">Add Money</Button>
+                      <Button 
+                        className="flex-1" 
+                        variant="outline" 
+                        onClick={() => setIsWithdrawOpen(true)}
+                        disabled={!wallet || wallet.balance < 100}
+                      >
+                        Withdraw Money
+                      </Button>
+                      <Button className="flex-1" onClick={() => setIsAddMoneyOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Money
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -652,16 +756,26 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="text-center p-4 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5">
-                      <p className="text-sm text-muted-foreground mb-1">Total Referral Earnings</p>
-                      <p className="text-3xl font-bold text-primary">₹{mockUser.referralEarnings.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground mb-1">Referral Coins</p>
+                      <p className="text-3xl font-bold text-primary">{wallet?.referral_coins || 0}</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-muted/50">
+                      <p className="text-sm text-muted-foreground mb-1">Total Referrals</p>
+                      <p className="text-xl font-bold text-foreground">{totalReferrals}</p>
                     </div>
                     <div className="p-3 rounded-lg bg-muted/50 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Your Referral Code</p>
-                      <p className="font-mono font-bold text-lg">{mockUser.referralCode}</p>
+                      <p className="font-mono font-bold text-lg">{referralCode || "Loading..."}</p>
                     </div>
-                    <Button className="w-full" variant="outline">
-                      Share & Earn More
+                    <Button className="w-full" variant="outline" onClick={handleCopyReferralCode} disabled={!referralCode}>
+                      Copy Code
                     </Button>
+                    <Button className="w-full" onClick={handleShareReferral} disabled={!referralCode}>
+                      Share & Earn ₹50
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      Invite friends and earn ₹50 coins when they sign up!
+                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -671,6 +785,39 @@ const Dashboard = () => {
       </main>
 
       <Footer />
+
+      {/* Add Money Dialog */}
+      <AddMoneyDialog
+        open={isAddMoneyOpen}
+        onOpenChange={setIsAddMoneyOpen}
+        walletId={wallet?.id || null}
+        userId={user?.id || ''}
+        userEmail={userEmail}
+        userName={userName}
+        onSuccess={refetchWallet}
+      />
+
+      {/* Edit Profile Dialog */}
+      <EditProfileDialog
+        open={isEditProfileOpen}
+        onOpenChange={setIsEditProfileOpen}
+        userId={user?.id || ''}
+        currentName={userName}
+        currentPhone={userPhone}
+        onSuccess={() => window.location.reload()}
+      />
+
+      {/* Withdraw Money Dialog */}
+      {wallet && (
+        <WithdrawMoneyDialog
+          open={isWithdrawOpen}
+          onOpenChange={setIsWithdrawOpen}
+          walletId={wallet.id}
+          userId={user?.id || ''}
+          balance={wallet.balance}
+          onSuccess={refetchWallet}
+        />
+      )}
     </div>
   );
 };
