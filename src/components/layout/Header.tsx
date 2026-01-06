@@ -25,6 +25,8 @@ const baseNavigation = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  // Fix: navigation should be an array
+  const navigation = baseNavigation;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-dark">
